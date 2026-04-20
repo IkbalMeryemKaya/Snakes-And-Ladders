@@ -19,7 +19,6 @@ import java.util.ArrayList;
  */
 
 public class Server extends Thread {
- and 
     ServerSocket ssocket;
     boolean isRunning;
     ArrayList<ClientHandler> clientList;

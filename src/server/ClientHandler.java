@@ -19,15 +19,14 @@ import java.net.Socket;
  */
 
 public class ClientHandler extends Thread {
-
-    Socket socket;
+ Socket socket;
     InputStream input;
     OutputStream output;
     boolean isListening;
     String username;
     Server server;
     GameRoom gameRoom;
-
+ 
     public ClientHandler(Socket socket, Server server) throws IOException {
         this.socket = socket;
         this.server = server;
@@ -37,12 +36,12 @@ public class ClientHandler extends Thread {
         this.username = null;
         this.gameRoom = null;
     }
-
+ 
     public void startListening() {
         this.isListening = true;
         this.start();
     }
-
+ 
     public void sendMessage(String msg) {
         try {
             byte[] data = (msg + "\n").getBytes();
@@ -52,30 +51,30 @@ public class ClientHandler extends Thread {
             System.err.println("Mesaj gonderilemedi: " + ex.getMessage());
         }
     }
-
+ 
     @Override
     public void run() {
         while (this.isListening) {
             try {
                 int bsize = input.read(); // blocking
-                if (bsize == -1) break;   // baglanti kapandi
+                if (bsize == -1) break;
                 byte[] buffer = new byte[bsize];
                 input.read(buffer);
                 String message = new String(buffer).trim();
                 System.out.println("[" + username + "] --> " + message);
                 processMessage(message);
-
+ 
             } catch (IOException ex) {
                 this.isListening = false;
             }
         }
         cleanup();
     }
-
+ 
     private void processMessage(String message) {
         String[] parts = message.split("\\|");
         String type = parts[0];
-
+ 
         switch (type) {
             case "LOGIN":
                 handleLogin(parts[1]);
@@ -96,28 +95,31 @@ public class ClientHandler extends Thread {
                 System.out.println("Bilinmeyen mesaj: " + type);
         }
     }
-
+ 
     private void handleLogin(String uname) {
         this.username = uname;
+        server.lobbyManager.addPlayer(username, this);
         System.out.println(username + " giris yapti.");
-        // TODO: LobbyManager'a kaydet, LOBBY_UPDATE broadcast et
     }
-
+ 
     private void handleInvite(String targetUsername) {
-        System.out.println(username + " -> " + targetUsername + " davet gonderdi.");
-        // TODO: LobbyManager uzerinden hedefe INVITE_REQUEST ilet
+        server.lobbyManager.invitePlayer(username, targetUsername);
     }
-
+ 
     private void handleInviteResponse(String response) {
-        System.out.println(username + " daveti " + response + " etti.");
-        // TODO: ACCEPT ise GameRoom olustur, REJECT ise gondericiye bildir
+        if (response.equals("ACCEPT")) {
+            server.lobbyManager.acceptInvite(username);
+        } else {
+            server.lobbyManager.rejectInvite(username);
+        }
     }
-
+ 
     private void handleRollRequest() {
-        System.out.println(username + " zar atmak istiyor.");
-        // TODO: GameRoom'a ilet
+        if (gameRoom != null) {
+            gameRoom.handleRollRequest(username);
+        }
     }
-
+ 
     private void cleanup() {
         try {
             server.removeClient(this);
