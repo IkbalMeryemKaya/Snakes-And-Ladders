@@ -11,22 +11,18 @@ import java.net.Socket;
 
 /**
  *
- * @author Monster Huma H5 v4.1
+ * @author İkbal Meryem Kaya
  */
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
-
 public class ClientHandler extends Thread {
- Socket socket;
+
+    Socket socket;
     InputStream input;
     OutputStream output;
     boolean isListening;
     String username;
     Server server;
     GameRoom gameRoom;
- 
+
     public ClientHandler(Socket socket, Server server) throws IOException {
         this.socket = socket;
         this.server = server;
@@ -36,45 +32,47 @@ public class ClientHandler extends Thread {
         this.username = null;
         this.gameRoom = null;
     }
- 
+
     public void startListening() {
         this.isListening = true;
         this.start();
     }
- 
+
     public void sendMessage(String msg) {
         try {
             byte[] data = (msg + "\n").getBytes();
             output.write(data.length);
             output.write(data);
         } catch (IOException ex) {
-            System.err.println("Mesaj gonderilemedi: " + ex.getMessage());
+            System.err.println("Failed to send message: " + ex.getMessage());
         }
     }
- 
+
     @Override
     public void run() {
         while (this.isListening) {
             try {
                 int bsize = input.read(); // blocking
-                if (bsize == -1) break;
+                if (bsize == -1) {
+                    break;
+                }
                 byte[] buffer = new byte[bsize];
                 input.read(buffer);
                 String message = new String(buffer).trim();
                 System.out.println("[" + username + "] --> " + message);
                 processMessage(message);
- 
+
             } catch (IOException ex) {
                 this.isListening = false;
             }
         }
         cleanup();
     }
- 
+
     private void processMessage(String message) {
         String[] parts = message.split("\\|");
         String type = parts[0];
- 
+
         switch (type) {
             case "LOGIN":
                 handleLogin(parts[1]);
@@ -91,21 +89,27 @@ public class ClientHandler extends Thread {
             case "DISCONNECT":
                 this.isListening = false;
                 break;
+            case "GAME_ENDED":
+                if (gameRoom != null) {
+                    gameRoom = null;
+                }
+                server.lobbyManager.setPlayerAvailable(username);
+                break;
             default:
-                System.out.println("Bilinmeyen mesaj: " + type);
+                System.out.println("Unknown message type: " + type);
         }
     }
- 
+
     private void handleLogin(String uname) {
         this.username = uname;
         server.lobbyManager.addPlayer(username, this);
-        System.out.println(username + " giris yapti.");
+        System.out.println(username + " logged in.");
     }
- 
+
     private void handleInvite(String targetUsername) {
         server.lobbyManager.invitePlayer(username, targetUsername);
     }
- 
+
     private void handleInviteResponse(String response) {
         if (response.equals("ACCEPT")) {
             server.lobbyManager.acceptInvite(username);
@@ -113,20 +117,26 @@ public class ClientHandler extends Thread {
             server.lobbyManager.rejectInvite(username);
         }
     }
- 
+
     private void handleRollRequest() {
         if (gameRoom != null) {
             gameRoom.handleRollRequest(username);
         }
     }
- 
+
     private void cleanup() {
         try {
+            // Notify the opponent if a game is in progress
+            if (gameRoom != null) {
+                gameRoom.handlePlayerDisconnected(username);
+            }
             server.removeClient(this);
-            if (!socket.isClosed()) socket.close();
-            System.out.println(username + " baglantisi kapatildi.");
+            if (!socket.isClosed()) {
+                socket.close();
+            }
+            System.out.println(username + " connection closed.");
         } catch (IOException ex) {
-            System.err.println("Kapatma hatasi: " + ex.getMessage());
+            System.err.println("Cleanup error: " + ex.getMessage());
         }
     }
 
